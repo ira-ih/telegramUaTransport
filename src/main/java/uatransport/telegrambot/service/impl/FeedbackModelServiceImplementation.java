@@ -24,7 +24,7 @@ public class FeedbackModelServiceImplementation implements FeedbackModelService 
     @Override
     public int getLastQuestionId(Long id) {
 
-       FeedbackModel feedbackModel= feedbackModelRepository.getDistinctTopByChatModelOrderByDateDesc(chatModelService.findById(new Long(id)));
+       FeedbackModel feedbackModel= feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(id);
       if(feedbackModel.getQuestion()== null){
           return 0;
       }else return feedbackModel.getQuestion().getId();
@@ -34,6 +34,40 @@ public class FeedbackModelServiceImplementation implements FeedbackModelService 
     public void save(FeedbackModel feedbackModel) {
         feedbackModelRepository.save(feedbackModel);
 
+    }
+
+    @Override
+    public void updateTransportType(String type, long chatId) {
+       FeedbackModel feedbackModel= feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId);
+        feedbackModel.setTransportType(type);
+        feedbackModelRepository.save(feedbackModel);
+
+    }
+
+    @Override
+    public void updateTransportNumber(String number, long chatId) {
+
+        FeedbackModel feedbackModel= feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId);
+        feedbackModel.setTransportNumber(number);
+        feedbackModelRepository.save(feedbackModel);
+    }
+
+    public String  currentTransportType(long chatId){
+       return feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId).getTransportType();
+    }
+
+    @Override
+    public FeedbackModel getDistinctTopByChatIdOrderByDateDesc(long chatId) {
+        return feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId);
+    }
+
+    @Override
+    public void saveFedbackModel(FeedbackModel feedbackModel) {
+        feedbackModelRepository.save(feedbackModel);
+    }
+
+    public String  currentTransportNumber(long chatId){
+        return feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId).getTransportNumber();
     }
 
     //public int getLastQuestionId(Long chatId){

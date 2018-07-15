@@ -4,7 +4,19 @@ import uatransport.telegrambot.model.FeedbackModel;
 
 public interface FeedbackModelService {
 
-    public int getLastQuestionId(Long id);
-    
-    public void save(FeedbackModel feedbackModel);
+    int getLastQuestionId(Long id);
+
+    void save(FeedbackModel feedbackModel);
+
+    void updateTransportType(String type, long chatId);
+
+    void updateTransportNumber(String number, long chatId);
+
+    String currentTransportNumber(long chatId);
+
+    String currentTransportType(long chatId);
+
+    FeedbackModel getDistinctTopByChatIdOrderByDateDesc(long chatId);
+
+    void saveFedbackModel(FeedbackModel feedbackModel);
 }

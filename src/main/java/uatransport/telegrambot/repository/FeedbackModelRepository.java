@@ -12,8 +12,10 @@ import java.util.List;
 
 public interface FeedbackModelRepository extends JpaRepository<FeedbackModel,Integer> {
 
-    List<FeedbackModel> findAllByChatModel(Long chatId);
+    //List<FeedbackModel> findAllByChatModel(Long chatId);
 
-    FeedbackModel getDistinctTopByChatModelOrderByDateDesc(ChatModel chatModel);
+   // FeedbackModel getDistinctTopByChatModelOrderByDateDesc(ChatModel chatModel);
+
+    FeedbackModel getDistinctTopByChatIdOrderByDateDesc(long chatId);
 
 }

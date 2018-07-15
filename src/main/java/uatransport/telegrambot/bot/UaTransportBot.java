@@ -1,7 +1,10 @@
 package uatransport.telegrambot.bot;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestTemplate;
 import org.telegram.telegrambots.api.methods.send.SendMessage;
 import org.telegram.telegrambots.api.objects.Update;
 import org.telegram.telegrambots.api.objects.replykeyboard.ReplyKeyboardMarkup;
@@ -13,7 +16,6 @@ import uatransport.telegrambot.model.FeedbackModel;
 import uatransport.telegrambot.model.Question;
 import uatransport.telegrambot.repository.FeedbackModelRepository;
 import uatransport.telegrambot.repository.QuestionRepository;
-import uatransport.telegrambot.service.ChatModelService;
 import uatransport.telegrambot.service.FeedbackModelService;
 import uatransport.telegrambot.service.QuestionService;
 
@@ -23,8 +25,6 @@ import java.util.List;
 @Component
 public class UaTransportBot extends TelegramLongPollingBot {
 
-    @Autowired
-    private ChatModelService chatModelService;
 
     @Autowired
     private QuestionService questionService;
@@ -38,154 +38,126 @@ public class UaTransportBot extends TelegramLongPollingBot {
     @Autowired
     private QuestionRepository questionRepository;
 
+    @Autowired
+    private RestTemplate restTemplate;
+
     @Override
     public void onUpdateReceived(Update update) {
 
+        ResponseEntity<List> questions = restTemplate.getForEntity("http://localhost:8080/feedback-criteria", List.class);
+
         Long chatId = update.getMessage().getChatId();
-        System.out.println(update);
+        //System.out.println(update);
         ChatModel chatModel = new ChatModel();
         chatModel.setChatId(update.getMessage().getChatId());
 
         String name = update.getMessage().getChat().getFirstName();
 
         String message = update.getMessage().getText();
-        System.out.println(message);
+        System.out.println(message + " "+ name);
         if (message.equals("/start")) {
-            chatModelService.save(chatModel);
             sendMsg("Привіт " + name +
                     "! Будь ласка , використайте  /feedback команду щоб залишити враження від поїздки", chatId);
-        }else if (message.equals("/feedback")) {
-
-            // Add it to the message
-
+        } else if (message.equals("/feedback")) {
+            feedbackModelService.saveFedbackModel(new FeedbackModel().setChatId(chatId));
             sendMsgWithKeyboard("Будь ласка, виберіть тип транспорту", chatId, "transportType");
-        }else if (chatModelService.findById(chatId).getTransportType()==null) {
+        } else if (feedbackModelService.getDistinctTopByChatIdOrderByDateDesc(chatId).getTransportType() == null) {
             switch (message) {
                 case "Трамвай":
-                    chatModelService.updateTransportType(chatId, 1);
+                    feedbackModelService.updateTransportType("Tram", chatId);
                     sendMsg("Будь ласка, вкажіть номер транспорту", update.getMessage().getChatId());
                     break;
                 case "Тролейбус":
-                    chatModelService.updateTransportType(chatId, 2);
+                    feedbackModelService.updateTransportType("Troll", chatId);
                     sendMsg("Будь ласка, вкажіть номер транспорту", update.getMessage().getChatId());
                     break;
                 case "Автобус":
-                    chatModelService.updateTransportType(chatId, 3);
+                    feedbackModelService.updateTransportType("Bus", chatId);
                     sendMsg("Будь ласка, вкажіть номер транспорту", update.getMessage().getChatId());
                     break;
 
             }
         } else {
-            if (chatModelService.findById(chatId).getTransportNumber() == null) {
-                int transportNumber = Integer.parseInt(message);
-                chatModelService.updateTransportNumber(chatId, transportNumber);
+            if (feedbackModelService.getDistinctTopByChatIdOrderByDateDesc(chatId).getTransportNumber() == null) {
 
-                feedbackModelService.save(new FeedbackModel().setChatModel(chatModelService.findById(chatId)));
-                int k = feedbackModelService.getLastQuestionId(chatId);
+                feedbackModelService.updateTransportNumber(message, chatId);
+
+                feedbackModelService.save(new FeedbackModel().setChatId(chatId)
+                        .setTransportNumber(feedbackModelService.currentTransportNumber(chatId))
+                        .setTransportType(feedbackModelService.currentTransportType(chatId)));
+                int questionId = feedbackModelService.getLastQuestionId(chatId);
 
 
-                FeedbackModel feedbackModel = feedbackModelRepository.getDistinctTopByChatModelOrderByDateDesc(chatModelService.findById(chatId));
-                feedbackModel.setQuestion(questionRepository.findById(k + 1));
-                feedbackModelRepository.save(feedbackModel);
+                FeedbackModel feedbackModel = feedbackModelService.getDistinctTopByChatIdOrderByDateDesc(chatId);
+                feedbackModel.setQuestion(questionRepository.findById(questionId + 1));
+                feedbackModelService.saveFedbackModel(feedbackModel);
 
-                sendMsgWithKeyboard(questionExecutor(k), chatId, questionRepository.findById(k + 1).getType());
+                sendMsgWithKeyboard(questionExecutor(questionId), chatId, questionRepository.findById(questionId + 1).getType());
 
 
             } else {
-                FeedbackModel feedbackModel = feedbackModelRepository.getDistinctTopByChatModelOrderByDateDesc(chatModelService.findById(chatId));
+                FeedbackModel feedbackModel = feedbackModelService.getDistinctTopByChatIdOrderByDateDesc(chatId);
                 feedbackModel.setAnswer(message);
-                feedbackModelRepository.save(feedbackModel);
-                int k = feedbackModelService.getLastQuestionId(chatId);
+                feedbackModelService.saveFedbackModel(feedbackModel);
+                int questionId = feedbackModelService.getLastQuestionId(chatId);
 
-                feedbackModelService.save(new FeedbackModel().setChatModel(chatModelService.findById(chatId)).setQuestion(questionRepository.findById(k + 1)));
-                if (questionRepository.findById(k + 1) == null) {
-                    sendMsg(questionExecutor(k), chatId);
+                feedbackModelService.saveFedbackModel(new FeedbackModel().setChatId(chatId)
+                        .setTransportNumber(feedbackModelService.currentTransportNumber(chatId))
+                        .setTransportType(feedbackModelService.currentTransportType(chatId)).setQuestion(questionRepository.findById(questionId + 1)));
+                if (questionRepository.findById(questionId + 1) == null) {
+                    sendMsg(questionExecutor(questionId), chatId);
                 } else
-                    sendMsgWithKeyboard(questionExecutor(k), chatId, questionRepository.findById(k + 1).getType());
+                    sendMsgWithKeyboard(questionExecutor(questionId), chatId, questionRepository.findById(questionId + 1).getType());
 
             }
 
         }
     }
-        /*if (message.startsWith("*")) {
-            FeedbackModel feedbackModel = feedbackModelRepository.getDistinctTopByChatModelOrderByDateDesc(chatModelService.findById(chatId));
-            feedbackModel.setAnswer(message);
-            feedbackModelRepository.save(feedbackModel);
-            int k = feedbackModelService.getLastQuestionId(chatId);
-
-            feedbackModelService.save(new FeedbackModel().setChatModel(chatModelService.findById(chatId)).setQuestion(questionRepository.findById(k + 1)));
-if(questionRepository.findById(k+1)==null){
-    sendMsg(questionExecutor(k), chatId);
-}
-else
-    sendMsgWithKeyboard(questionExecutor(k), chatId,questionRepository.findById(k+1).getType());
-
-        }*/
-
-
-
 
 
     @Override
     public String getBotUsername() {
-        // Return bot username
-        // If bot username is @UaTransportBot, it must return 'UaTransportBot'
+
         return "UaTransportBot";
     }
 
     @Override
     public String getBotToken() {
-        // Return bot token from BotFather
+
         return "604444787:AAEZAu56oW_KVcd2PmXmiBQsu_gMnBKgy9s";
     }
 
 
-    public static boolean isInteger(String s) {
-        try {
-            Integer.parseInt(s);
-        } catch (NumberFormatException e) {
-            return false;
-        } catch (NullPointerException e) {
-            return false;
-        }
-        // only got here if we didn't return false
-        return true;
-    }
-
     public void sendMsg(String messageToSend, Long chatId) {
-        SendMessage messageSend = new SendMessage() // Create a message object object
+        SendMessage messageSend = new SendMessage()
                 .setChatId(chatId)
                 .setText(messageToSend);
 
         try {
 
-            execute(messageSend); // Sending our message object to user
+            execute(messageSend);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
     }
 
     public void sendMsgWithKeyboard(String messageToSend, Long chatId, String type) {
-        SendMessage messageSend = new SendMessage() // Create a message object object
+        SendMessage messageSend = new SendMessage()
                 .setChatId(chatId)
                 .setText(messageToSend);
 
         try {
             messageSend.setReplyMarkup(createKeyboarde(type));
-            execute(messageSend); // Sending our message object to user
+            execute(messageSend);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
     }
 
-    public String questionExecutor(int i) {
+    public String questionExecutor(int questionId) {
         List<Question> questionList = questionService.getAll();
-        if (i == questionList.size()) {
-            return "Дякую, Ваш відгук прийнято";
-        } else if (i > questionList.size()) {
-            return "Дякую, Ваш відгук прийнято";
-        } else if (i < questionList.size()) {
-            return questionList.get(i).getName();
+        if (questionId < questionList.size()) {
+            return questionList.get(questionId).getName();
 
         } else
             return "Дякую, Ваш відгук прийнято";
@@ -240,5 +212,11 @@ else
         }
         return keyboardMarkup;
 
+    }
+
+
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
     }
 }

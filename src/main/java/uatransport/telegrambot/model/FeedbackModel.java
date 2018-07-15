@@ -20,15 +20,20 @@ public class FeedbackModel {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private Integer id;
 
+    private long chatId;
+
+    private String transportType;
+    private String transportNumber;
+
     private String answer;
 
     @ManyToOne
     @JoinColumn(name = "question_id")
     private Question question;
 
-    @ManyToOne
+    /*@ManyToOne
     @JoinColumn(name = "chat_id")
-    private ChatModel chatModel;
+    private ChatModel chatModel;*/
 
 
     @CreationTimestamp
