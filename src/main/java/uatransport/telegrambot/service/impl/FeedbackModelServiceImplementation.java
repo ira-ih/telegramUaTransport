@@ -2,13 +2,13 @@ package uatransport.telegrambot.service.impl;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import uatransport.telegrambot.model.FeedbackModel;
-import uatransport.telegrambot.model.Question;
+import uatransport.telegrambot.entity.FeedbackModel;
+import uatransport.telegrambot.entity.Question;
 import uatransport.telegrambot.repository.FeedbackModelRepository;
 import uatransport.telegrambot.service.ChatModelService;
 import uatransport.telegrambot.service.FeedbackModelService;
 
-import java.util.ArrayList;
+import javax.transaction.Transactional;
 import java.util.List;
 
 @Service
@@ -22,12 +22,9 @@ public class FeedbackModelServiceImplementation implements FeedbackModelService 
     private ChatModelService chatModelService;
 
     @Override
-    public int getLastQuestionId(Long id) {
+    public Question getLastQuestion(Long id) {
 
-       FeedbackModel feedbackModel= feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(id);
-      if(feedbackModel.getQuestion()== null){
-          return 0;
-      }else return feedbackModel.getQuestion().getId();
+     return feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(id).getQuestion();
     }
 
     @Override
@@ -37,24 +34,32 @@ public class FeedbackModelServiceImplementation implements FeedbackModelService 
     }
 
     @Override
-    public void updateTransportType(String type, long chatId) {
+    @Transactional
+    public void updateTransitId(Integer transitId, long chatId) {
        FeedbackModel feedbackModel= feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId);
-        feedbackModel.setTransportType(type);
+        feedbackModel.setTransitId(transitId);
         feedbackModelRepository.save(feedbackModel);
 
     }
 
     @Override
-    public void updateTransportNumber(String number, long chatId) {
-
-        FeedbackModel feedbackModel= feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId);
-        feedbackModel.setTransportNumber(number);
-        feedbackModelRepository.save(feedbackModel);
+    @Transactional
+    public void updateQuestion(Question question, long chatId) {
+       FeedbackModel feedbackModel= feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId);
+     feedbackModel.setQuestion(question);
+     feedbackModelRepository.save(feedbackModel);
     }
 
-    public String  currentTransportType(long chatId){
-       return feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId).getTransportType();
+    @Override
+    public Integer currentTransitId(long chatId) {
+        return feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId).getTransitId();
     }
+
+    @Override
+    public String currentUuid(long chatId) {
+      return   feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId).getUuid();
+    }
+
 
     @Override
     public FeedbackModel getDistinctTopByChatIdOrderByDateDesc(long chatId) {
@@ -62,34 +67,29 @@ public class FeedbackModelServiceImplementation implements FeedbackModelService 
     }
 
     @Override
+    @Transactional
+    public void updateAnswer(String answer, long chatId) {
+       FeedbackModel feedbackModel =  feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId);
+        feedbackModel.setAnswer(answer);
+        feedbackModelRepository.save(feedbackModel);
+    }
+
+    @Override
+    @Transactional
     public void saveFedbackModel(FeedbackModel feedbackModel) {
         feedbackModelRepository.save(feedbackModel);
     }
 
-    public String  currentTransportNumber(long chatId){
-        return feedbackModelRepository.getDistinctTopByChatIdOrderByDateDesc(chatId).getTransportNumber();
+    @Override
+    @Transactional
+    public List<FeedbackModel> findAllByChatId(Long chatId) {
+        return feedbackModelRepository.findAllByChatId(chatId);
     }
 
-    //public int getLastQuestionId(Long chatId){
-        // chatModelService.findById(chatId);
-        //List<FeedbackModel> feedbackModels = feedbackModelRepository.getFeedbackModelByChatModel(chatModelService.findById(chatId));L
-        //
-        //
-        //List<Question> questions= new ArrayList<>(feedbackModels.size());
-        //int i=0;
-        //for (Question question : questions) {
-        //question=feedbackModels.get(i).getQuestion();
-        //i++;
-        //
-        //}
-        //
-        //
-        //
-        //
-        //List<Integer> questionIdList = new ArrayList<>(feedbackModels.size());
-        //
-        //for (Integer integer : questionIdList) {
-        //integer=questions.get(i).getId(); }
-     //   return 3;
-   // }
+    @Override
+    @Transactional
+    public void deleteAllByChatId(Long chatId) {
+        feedbackModelRepository.deleteAllByChatId(chatId);
+    }
+
 }

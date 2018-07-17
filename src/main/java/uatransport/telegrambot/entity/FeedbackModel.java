@@ -1,4 +1,4 @@
-package uatransport.telegrambot.model;
+package uatransport.telegrambot.entity;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -22,19 +22,15 @@ public class FeedbackModel {
 
     private long chatId;
 
-    private String transportType;
-    private String transportNumber;
+    private Integer transitId;
+
+    private String uuid;
 
     private String answer;
 
     @ManyToOne
     @JoinColumn(name = "question_id")
     private Question question;
-
-    /*@ManyToOne
-    @JoinColumn(name = "chat_id")
-    private ChatModel chatModel;*/
-
 
     @CreationTimestamp
     private Date  date;

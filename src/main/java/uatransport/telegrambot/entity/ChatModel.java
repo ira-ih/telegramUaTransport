@@ -1,12 +1,12 @@
-package uatransport.telegrambot.model;
+package uatransport.telegrambot.entity;
 
 import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Accessors;
+import org.hibernate.annotations.CreationTimestamp;
 
 import javax.persistence.*;
+import java.util.Date;
 
 @Entity
 @Data
@@ -15,14 +15,15 @@ import javax.persistence.*;
 @RequiredArgsConstructor
 public class ChatModel {
 
-   /* @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private Integer id;*/
-
    @Id
     private Long chatId;
 
-    private Integer transportType;
+   private String categoryName;
 
-    private Integer transportNumber;
+   private Integer categoryId;
+
+    @CreationTimestamp
+    private Date date;
+
+
 }

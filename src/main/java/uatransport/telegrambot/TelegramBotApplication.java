@@ -7,9 +7,7 @@ import org.telegram.telegrambots.ApiContextInitializer;
 import org.telegram.telegrambots.TelegramBotsApi;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
 import uatransport.telegrambot.bot.UaTransportBot;
-import uatransport.telegrambot.model.ChatModel;
-import uatransport.telegrambot.repository.ChatModelRepository;
-import uatransport.telegrambot.service.ChatModelService;
+
 
 @SpringBootApplication
 public class TelegramBotApplication {
@@ -18,10 +16,8 @@ public class TelegramBotApplication {
 
         ApiContextInitializer.init();
        ConfigurableApplicationContext context= SpringApplication.run(TelegramBotApplication.class, args);
-        System.out.println("Application started");
 
-
-
+       System.out.println("Application started");
 
         // Instantiate Telegram Bots API
         TelegramBotsApi botsApi = new TelegramBotsApi();

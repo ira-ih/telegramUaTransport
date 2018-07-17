@@ -2,7 +2,6 @@ package uatransport.telegrambot.bot;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 import org.telegram.telegrambots.api.methods.send.SendMessage;
@@ -11,16 +10,22 @@ import org.telegram.telegrambots.api.objects.replykeyboard.ReplyKeyboardMarkup;
 import org.telegram.telegrambots.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
-import uatransport.telegrambot.model.ChatModel;
-import uatransport.telegrambot.model.FeedbackModel;
-import uatransport.telegrambot.model.Question;
-import uatransport.telegrambot.repository.FeedbackModelRepository;
-import uatransport.telegrambot.repository.QuestionRepository;
+
+import uatransport.telegrambot.converters.CategoryConverter;
+import uatransport.telegrambot.converters.FeedBackConverter;
+import uatransport.telegrambot.converters.FeedBackCriteriaConverter;
+import uatransport.telegrambot.entity.*;
+import uatransport.telegrambot.models.Category;
+import uatransport.telegrambot.response.mapper.CategoryResponseMapper;
+import uatransport.telegrambot.response.mapper.FeedbackCriteriaResponseMapper;
+import uatransport.telegrambot.response.mapper.TransitResponseMapper;
+import uatransport.telegrambot.service.ChatModelService;
 import uatransport.telegrambot.service.FeedbackModelService;
 import uatransport.telegrambot.service.QuestionService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 public class UaTransportBot extends TelegramLongPollingBot {
@@ -33,86 +38,86 @@ public class UaTransportBot extends TelegramLongPollingBot {
     private FeedbackModelService feedbackModelService;
 
     @Autowired
-    private FeedbackModelRepository feedbackModelRepository;
+    private ChatModelService chatModelService;
+
 
     @Autowired
-    private QuestionRepository questionRepository;
+    private CategoryResponseMapper categoryResponseMapper;
 
     @Autowired
-    private RestTemplate restTemplate;
+    FeedbackCriteriaResponseMapper feedbackCriteriaResponseMapper;
+
+    @Autowired
+    private CategoryConverter categoryConverter;
+
+    @Autowired
+    private FeedBackCriteriaConverter feedBackCriteriaConverter;
+
+    @Autowired
+    private TransitResponseMapper transitResponseMapper;
+
+    @Autowired
+    private FeedBackConverter feedBackConverter;
+
+
+    @Autowired
+    private KeyBoard keyBoard;
+
+
 
     @Override
     public void onUpdateReceived(Update update) {
 
-        ResponseEntity<List> questions = restTemplate.getForEntity("http://localhost:8080/feedback-criteria", List.class);
-
-        Long chatId = update.getMessage().getChatId();
-        //System.out.println(update);
-        ChatModel chatModel = new ChatModel();
-        chatModel.setChatId(update.getMessage().getChatId());
-
+      Long chatId = update.getMessage().getChatId();
         String name = update.getMessage().getChat().getFirstName();
-
         String message = update.getMessage().getText();
-        System.out.println(message + " "+ name);
+
         if (message.equals("/start")) {
             sendMsg("Привіт " + name +
                     "! Будь ласка , використайте  /feedback команду щоб залишити враження від поїздки", chatId);
         } else if (message.equals("/feedback")) {
-            feedbackModelService.saveFedbackModel(new FeedbackModel().setChatId(chatId));
-            sendMsgWithKeyboard("Будь ласка, виберіть тип транспорту", chatId, "transportType");
-        } else if (feedbackModelService.getDistinctTopByChatIdOrderByDateDesc(chatId).getTransportType() == null) {
-            switch (message) {
-                case "Трамвай":
-                    feedbackModelService.updateTransportType("Tram", chatId);
-                    sendMsg("Будь ласка, вкажіть номер транспорту", update.getMessage().getChatId());
-                    break;
-                case "Тролейбус":
-                    feedbackModelService.updateTransportType("Troll", chatId);
-                    sendMsg("Будь ласка, вкажіть номер транспорту", update.getMessage().getChatId());
-                    break;
-                case "Автобус":
-                    feedbackModelService.updateTransportType("Bus", chatId);
-                    sendMsg("Будь ласка, вкажіть номер транспорту", update.getMessage().getChatId());
-                    break;
+            chatModelService.save(new ChatModel().setChatId(chatId));
+            ArrayList<Category> categories = categoryConverter.convertToCategoryArray(categoryResponseMapper.getCategoryList());
+            sendMsgWithDynamicKeyboard("Будь ласка, виберіть тип транспорту", chatId, categories);
+        }else if (chatModelService.getDistinctTopByChatIdOrderByDateDesc(chatId).getCategoryName() == null) {
+
+            Integer categoryId = categoryConverter.convertSingleCategory(categoryResponseMapper.getSingleCategory(message)).getId();
+            chatModelService.updateCategoryName(message, categoryId, chatId);
+            final String uuid = UUID.randomUUID().toString().replace("-", "");
+            feedbackModelService.save(new FeedbackModel().setChatId(chatId).setUuid(uuid));
+            sendMsg("Будь ласка, вкажіть номер транспорту", update.getMessage().getChatId());
+        } else if(feedbackModelService.getDistinctTopByChatIdOrderByDateDesc(chatId).getTransitId() == null) {
+
+                Integer categoryId = chatModelService.getDistinctTopByChatIdOrderByDateDesc(chatId).getCategoryId();
+                Integer transitId = transitResponseMapper.getTransitByNameAndNextLevelCategoryName(message, categoryId).getId();
+                feedbackModelService.updateTransitId(transitId, chatId);
+
+                ArrayList<Question> questions1 = feedBackCriteriaConverter.convertToQuestionArray(feedbackCriteriaResponseMapper.getFeedbackCriteriaResponseByCategoryIdAndTypeSIMPLE(chatModelService.getDistinctTopByChatIdOrderByDateDesc(chatId).getCategoryId()));
+                ArrayList<Question> questions2 = feedBackCriteriaConverter.convertToQuestionArray(feedbackCriteriaResponseMapper.getFeedbackCriteriaResponseByCategoryIdAndTypeRating(5));
+                ArrayList<Question> questions = feedBackCriteriaConverter.setNextQuestionAndChatIdAndUuid(feedBackCriteriaConverter.generalArrayList(questions1, questions2), chatId,feedbackModelService.currentUuid(chatId));
+
+
+              questionService.saveQuestionFromList(questions);
+               feedbackModelService.updateQuestion(questions.get(0), chatId);
+               //feedbackModelService.save(new FeedbackModel().setTransitId(feedbackModelService.currentTransitId(chatId)).setChatId(chatId).setQuestion(questionService.findByChatId(chatId).get(1)));
+               sendMsgWithKeyboardByType(questions.get(0).getName(),chatId, questions.get(0).getType());
 
             }
-        } else {
-            if (feedbackModelService.getDistinctTopByChatIdOrderByDateDesc(chatId).getTransportNumber() == null) {
-
-                feedbackModelService.updateTransportNumber(message, chatId);
-
-                feedbackModelService.save(new FeedbackModel().setChatId(chatId)
-                        .setTransportNumber(feedbackModelService.currentTransportNumber(chatId))
-                        .setTransportType(feedbackModelService.currentTransportType(chatId)));
-                int questionId = feedbackModelService.getLastQuestionId(chatId);
-
-
-                FeedbackModel feedbackModel = feedbackModelService.getDistinctTopByChatIdOrderByDateDesc(chatId);
-                feedbackModel.setQuestion(questionRepository.findById(questionId + 1));
-                feedbackModelService.saveFedbackModel(feedbackModel);
-
-                sendMsgWithKeyboard(questionExecutor(questionId), chatId, questionRepository.findById(questionId + 1).getType());
-
-
-            } else {
-                FeedbackModel feedbackModel = feedbackModelService.getDistinctTopByChatIdOrderByDateDesc(chatId);
-                feedbackModel.setAnswer(message);
-                feedbackModelService.saveFedbackModel(feedbackModel);
-                int questionId = feedbackModelService.getLastQuestionId(chatId);
-
-                feedbackModelService.saveFedbackModel(new FeedbackModel().setChatId(chatId)
-                        .setTransportNumber(feedbackModelService.currentTransportNumber(chatId))
-                        .setTransportType(feedbackModelService.currentTransportType(chatId)).setQuestion(questionRepository.findById(questionId + 1)));
-                if (questionRepository.findById(questionId + 1) == null) {
-                    sendMsg(questionExecutor(questionId), chatId);
-                } else
-                    sendMsgWithKeyboard(questionExecutor(questionId), chatId, questionRepository.findById(questionId + 1).getType());
-
+            else if(feedbackModelService.getDistinctTopByChatIdOrderByDateDesc(chatId).getAnswer()==null){
+                feedbackModelService.updateAnswer(message, chatId);
+                if(feedbackModelService.getLastQuestion(chatId).getNextQuestion()!=null) {
+                    Question nextQuestion = feedbackModelService.getLastQuestion(chatId).getNextQuestion();
+                    feedbackModelService.save(new FeedbackModel().setTransitId(feedbackModelService.currentTransitId(chatId)).setChatId(chatId).setQuestion(nextQuestion).setUuid(feedbackModelService.currentUuid(chatId)));
+                    sendMsgWithKeyboardByType(nextQuestion.getName(), chatId, nextQuestion.getType());
+                }else  {
+                    feedbackModelService.findAllByChatId(chatId);
+                    feedBackConverter.executePost(feedbackModelService.findAllByChatId(chatId));
+              //      feedbackModelService.deleteAllByChatId(chatId);
+              //      questionService.deleteListQuestionsByChatId(chatId);
+                    sendMsg("ThankYou", chatId);}
             }
-
         }
-    }
+
 
 
     @Override
@@ -132,91 +137,99 @@ public class UaTransportBot extends TelegramLongPollingBot {
         SendMessage messageSend = new SendMessage()
                 .setChatId(chatId)
                 .setText(messageToSend);
-
         try {
-
             execute(messageSend);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
     }
 
-    public void sendMsgWithKeyboard(String messageToSend, Long chatId, String type) {
+    public void sendMsgWithDynamicKeyboard(String messageToSend, Long chatId, ArrayList<Category> categories) {
         SendMessage messageSend = new SendMessage()
                 .setChatId(chatId)
                 .setText(messageToSend);
-
         try {
-            messageSend.setReplyMarkup(createKeyboarde(type));
+            messageSend.setReplyMarkup(keyBoard.createKeyboardDynamic(categories));
             execute(messageSend);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
     }
 
-    public String questionExecutor(int questionId) {
-        List<Question> questionList = questionService.getAll();
-        if (questionId < questionList.size()) {
-            return questionList.get(questionId).getName();
-
-        } else
-            return "Дякую, Ваш відгук прийнято";
-    }
-
-    public ReplyKeyboardMarkup createKeyboarde(String type) {
-        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
-
-        List<KeyboardRow> keyboard = new ArrayList<>();
-
-        KeyboardRow row = new KeyboardRow();
-
-        switch (type) {
-            case "transportType":
-                row.add("Автобус");
-                keyboard.add(row);
-
-                row = new KeyboardRow();
-                row.add("Трамвай");
-                keyboard.add(row);
-
-                row = new KeyboardRow();
-                row.add("Тролейбус");
-                keyboard.add(row);
-                keyboardMarkup.setKeyboard(keyboard);
-                break;
-            case "ACCEPTANCE":
-                row.add("Так");
-                keyboard.add(row);
-
-                row = new KeyboardRow();
-                row.add("Ні");
-                keyboard.add(row);
-                keyboardMarkup.setKeyboard(keyboard);
-                break;
-            case "RATING":
-                row.add("1");
-                row.add("2");
-                row.add("3");
-                row.add("4");
-                row.add("5");
-                keyboard.add(row);
-                row = new KeyboardRow();
-                row.add("6");
-                row.add("7");
-                row.add("8");
-                row.add("9");
-                row.add("10");
-                keyboard.add(row);
-                keyboardMarkup.setKeyboard(keyboard);
-
+    public void sendMsgWithKeyboardByType(String messageToSend, Long chatId, String type) {
+        SendMessage messageSend = new SendMessage()
+                .setChatId(chatId)
+                .setText(messageToSend);
+        try {
+            messageSend.setReplyMarkup(keyBoard.createKeyboardeByType(type));
+            execute(messageSend);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
         }
-        return keyboardMarkup;
-
     }
+
+
+
 
 
     @Bean
     public RestTemplate restTemplate() {
         return new RestTemplate();
     }
+}
+
+@Component
+class KeyBoard{
+
+    public ReplyKeyboardMarkup createKeyboardDynamic(ArrayList<Category> categories) {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+
+        List<KeyboardRow> keyboard = new ArrayList<>();
+
+        for (Category category : categories) {
+            KeyboardRow row = new KeyboardRow();
+            row.add(category.getName());
+            keyboard.add(row);
+
+        }
+        keyboardMarkup.setKeyboard(keyboard);
+        return keyboardMarkup;
+    }
+
+    public ReplyKeyboardMarkup createKeyboardeByType(String type) {
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+
+        List<KeyboardRow> keyboard = new ArrayList<>();
+        KeyboardRow row = new KeyboardRow();
+switch (type){
+    case "SIMPLE":
+        row.add("Так");
+        keyboard.add(row);
+
+        row = new KeyboardRow();
+        row.add("Ні");
+        keyboard.add(row);
+        keyboardMarkup.setKeyboard(keyboard);
+        break;
+    case "RATING":
+        row.add("1");
+        row.add("2");
+        row.add("3");
+        row.add("4");
+        row.add("5");
+        keyboard.add(row);
+        row = new KeyboardRow();
+        row.add("6");
+        row.add("7");
+        row.add("8");
+        row.add("9");
+        row.add("10");
+        keyboard.add(row);
+        keyboardMarkup.setKeyboard(keyboard);
+
+    }
+        return keyboardMarkup;
+   }
+
+
 }
