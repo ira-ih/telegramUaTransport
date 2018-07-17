@@ -117,6 +117,7 @@ public class UaTransportBot extends TelegramLongPollingBot {
             } else {
                 feedbackModelService.findAllByChatId(chatId);
                 feedBackConverter.executePost(feedbackModelService.findAllByChatId(chatId));
+                feedbackModelService.deleteAllByChatId(chatId);
 
                 sendMsg("Дякую, Ваш відгук прийнято", chatId);
             }

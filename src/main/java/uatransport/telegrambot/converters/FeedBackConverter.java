@@ -8,8 +8,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
-import uatransport.telegrambot.models.FeedbackDTO;
 import uatransport.telegrambot.entity.FeedbackModel;
+import uatransport.telegrambot.models.FeedbackDTO;
 
 import java.util.List;
 
@@ -28,7 +28,7 @@ public class FeedBackConverter {
             feedbackDTO.setAnswer("[{\"answer\":" + answer + ", \"weight\":" + weight + "}]");
             feedbackDTO.setUserId(1);
             return feedbackDTO;
-        }else if (feedbackModel.getQuestion().getType().equals("SIMPLE")) {
+        } else if (feedbackModel.getQuestion().getType().equals("SIMPLE")) {
             FeedbackDTO feedbackDTO = new FeedbackDTO();
             feedbackDTO.setCriteriaId(feedbackModel.getQuestion().getCriterieId());
             feedbackDTO.setTransitId(feedbackModel.getTransitId());
@@ -39,7 +39,7 @@ public class FeedBackConverter {
             }
             feedbackDTO.setUserId(1);
             return feedbackDTO;
-        }else return null;
+        } else return null;
     }
 
     public String post(FeedbackDTO feedbackDTO) {
@@ -54,6 +54,7 @@ public class FeedBackConverter {
         String url = "http://localhost:8443/feedback";
 
         HttpHeaders headers = new HttpHeaders();
+        headers.add("Authorization", "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJpaC5pcnluYUBnbWFpbC5jb20iLCJhdXRoIjoiVVNFUiIsImlkIjo2MCwiaWF0IjoxNTMxODIwNzQyLCJleHAiOjE1MzIwNzk5NDJ9.c6F6Xgrhbsmj-qcx0hmO6-q2k3bzvVDEb2YkFU0VA1c");
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         HttpEntity<String> entity = new HttpEntity<String>(jsonInString, headers);
@@ -62,7 +63,7 @@ public class FeedBackConverter {
         return jsonInString;
     }
 
-    public void executePost(List<FeedbackModel> feedbackModels){
+    public void executePost(List<FeedbackModel> feedbackModels) {
         for (FeedbackModel feedbackModel : feedbackModels) {
             post(convert(feedbackModel));
 
